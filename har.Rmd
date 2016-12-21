@@ -1,0 +1,129 @@
+---
+title: "Human Activity Recognition"
+subtitle: "John Hopkins University Data Science Specialization, Practical Machine Learning Course Project"
+author: "H. Emre ETLIOGLU"
+date: "December 19, 2016"
+output: html_document
+---
+
+## Set-up
+
+```{r }
+set.seed(12345)
+library(caret)
+```
+
+## Introduction
+
+Thanks to advancing technology, it is now possible to collect data about physical activity using wearable devices such as *Jawbone Up, Nike FuelBand*, and *Fitbit*. The aim of this project is to use physical activity information to predict how well these activities are performed.
+
+## Data
+
+The dataset used in this analysis contains information about 6 individuals, who *correctly and incorrectly performed barbell lifts in 5 different ways*. For a detailed explanation of the dataset, please see http://groupware.les.inf.puc-rio.br/har. The dataset, which was split into `training` and `test` datasets, were downloaded from the course website.
+
+
+```{r }
+trainDf <- read.csv("pml-training.csv")
+testDf <- read.csv("pml-testing.csv")
+```
+
+The training dataset has 19622 observations of 160 variables and quite some `NA` values.
+
+The test dataset has 20 observations of 160 variables and also a lot of `NA` values.
+
+At a first glance, the first seven variables can be said to be irrelevant to the analysis and hence are removed.
+
+```{r }
+trainDf <- trainDf[,8:length(trainDf)]
+```
+
+Variables with a high proportion of `NA` values are removed from the dataset.
+
+```{r echo=FALSE}
+removeNAs <- function(dataframe, cutoff) {
+tempDf <- dataframe
+# for every column in the dataset
+for(i in 1:length(dataframe)) {
+    # if proportion of NA values are above the cutoff
+    if(sum(is.na(dataframe[, i])) / nrow(dataframe) >= cutoff ) {
+        varName <- names(dataframe[i])
+        tempDf <- tempDf[, -which(names(tempDf) == varName)]
+    }
+}
+dataframe <- tempDf
+}
+```
+
+```{r }
+# see the appendix for the function removeNAs()
+trainDf <- removeNAs(trainDf, 0.90)
+```
+
+As a rule of thumb, variables with very little variance and hence having little predictive power, should be removed from the datasets.
+
+```{r }
+nzv <- nearZeroVar(trainDf)
+trainDf <- trainDf[, -nzv]
+```
+
+The `trainDf` dataset is partitioned in order to create `training` and `validation` datasets. This enables the `out of sample error` to be reported.
+```{r }
+inTrain <- createDataPartition(y = trainDf$classe, p = 0.7, list = FALSE)
+training <- trainDf[inTrain, ]
+validation <- trainDf[-inTrain, ]
+```
+
+## Modelling
+
+Predicting the type of physical activity is a classification problem. In general, *Random Forest* is applied in such cases.
+
+Tne `caret` package provides an interface, the `train` function, in order to construct models using a method of interest, this time *Random Forest* (`method = "rf"`). Using `trainControl`, one can pass settings to the `train` function, in this case *cross validation* (`method="cv"`), and `3` for `number of folds`. In short, a *Random Forest* model with *3-fold cross validation* is performed.    
+
+```{r cache=TRUE}
+setttingsRF <- trainControl(method="cv", 3) # RF settings
+modelRF <- train(classe ~ ., data=training, method="rf", trControl=setttingsRF, ntree=250)
+modelRF
+```
+
+
+The `validation` dataset, in combination with the functions `predict` and `confusionMatrix`, is used to determine the `out-of-sample error` of the model created. 
+
+```{r }
+predRF <- predict(modelRF, newdata = validation)
+confusionMatrix(validation$classe, predRF)
+```
+
+The `out-of-sample error` for the model appears to be `r 1 - 0.9924`. This error rate is acceptable and it is *safe* to go on with prediction using this very model.
+
+## Prediction
+
+The model built above is used for predicting the type of activity using the test dataset `testDf` provided:
+
+```{r }
+predictions <- predict(modelRF, testDf)
+predictions
+```
+
+These predictions were submitted to the course website (*Course Project Prediction Quiz*) and were 100% accurate.
+
+## Conclusions
+
+In this analysis, *type* and *aspect* (correct vs incorrect) of physical activity is estimated, based on a dataset which is specifically built for this purpose. A *Random Forest* model with `r (1 - 0.9924)*100`% *out-of-sample error* was used to predict 20 test cases, resulting in 100% (20 out of 20) accurcacy. Given these results, human activity can be said to be accurately predicted with a *Random Forest*  model.
+
+## Appendix
+
+
+```{r }
+removeNAs <- function(dataframe, cutoff) {
+tempDf <- dataframe
+# for every column in the dataset
+for(i in 1:length(dataframe)) {
+    # if proportion of NA values are above the cutoff
+    if(sum(is.na(dataframe[, i])) / nrow(dataframe) >= cutoff ) {
+        varName <- names(dataframe[i])
+        tempDf <- tempDf[, -which(names(tempDf) == varName)]
+    }
+}
+dataframe <- tempDf
+}
+```
